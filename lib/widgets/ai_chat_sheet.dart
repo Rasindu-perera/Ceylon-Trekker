@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../app/app_theme.dart';
 
 class ChatMessage {
@@ -24,7 +25,7 @@ class _AiChatSheetState extends State<AiChatSheet> {
   final List<ChatMessage> _messages = [];
   bool _isLoading = false;
 
-  final String _groqApiKey = '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';
+  String get _groqApiKey => dotenv.env['GROQ_API_KEY'] ?? '';
   
   // Maintain the chat history for Groq (OpenAI format)
   final List<Map<String, String>> _chatHistory = [

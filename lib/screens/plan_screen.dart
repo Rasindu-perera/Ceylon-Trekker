@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../app/app_theme.dart';
 
 class PlanScreen extends StatefulWidget {
@@ -21,7 +22,7 @@ class _PlanScreenState extends State<PlanScreen> {
   bool _isLoading = false;
   String? _generatedPlan;
 
-  final String _groqApiKey = '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';
+  String get _groqApiKey => dotenv.env['GROQ_API_KEY'] ?? '';
 
   Future<void> _generatePlan() async {
     final dest = _destinationController.text.trim();
