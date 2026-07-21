@@ -1,16 +1,16 @@
-# ceylon_trekker
+# Ceylon Trekker 🏕️🇱🇰
 
-A new Flutter project.
+**Ceylon Trekker** is a proprietary mobile application developed to redefine travel experiences across Sri Lanka. Built as the ultimate digital companion for outdoor enthusiasts and group adventurers under the **Ceylon Travel's** brand, this app brings advanced travel tools into one seamless, intuitive interface.
 
-## Getting Started
+## 🚀 Key Features
 
-This project is a starting point for a Flutter application.
+* 🤖 **AI Trip Planner:** Generates custom multi-day itineraries based on traveler preferences, pacing, and budgets.
+* 🗺️ **Interactive Navigation:** Leverages OpenStreetMap and OSRM routing to discover hidden gems like camping sites, waterfalls, and viewpoints with real-time distance and vehicle-specific travel times.
+* 💰 **Smart Budget Tracker:** An integrated financial tool designed for group travels to log expenses, track category spending, and calculate remaining balances effortlessly.
+* 🎨 **Modern UI/UX:** A sleek, dark-themed interface engineered for fast, offline-friendly access while on the go.
 
-A few resources to get you started if this is your first Flutter project:
+## ⚠️ Legal & Copyright
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+**Copyright (c) 2026 W K Rasindu Pravishka Perera (KWR). All Rights Reserved.**
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+This project is proprietary and closed-source. You may not copy, download, distribute, or modify this code without the express written permission of the author.
