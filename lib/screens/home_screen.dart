@@ -191,11 +191,19 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: const EdgeInsets.only(bottom: 110.0),
         child: FloatingActionButton.extended(
           onPressed: () {
-            Navigator.push(context, MaterialPageRoute(builder: (context) => const PlanScreen()));
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (context) => FractionallySizedBox(
+                heightFactor: 0.75,
+                child: const AiChatSheet(),
+              ),
+            );
           },
           backgroundColor: AppTheme.emerald,
           icon: const Icon(Icons.smart_toy, color: Colors.white),
-          label: const Text('AI Planner', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          label: const Text('AI Guide', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         ),
       ),
     );

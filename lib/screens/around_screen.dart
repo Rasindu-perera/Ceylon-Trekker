@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:http/http.dart' as http;
 import '../app/app_theme.dart';
 import '../widgets/ai_chat_sheet.dart';
@@ -30,6 +31,10 @@ class _AroundScreenState extends State<AroundScreen> with AutomaticKeepAliveClie
     "Viewpoints": 'node["tourism"="viewpoint"]',
     "Camping": 'node["tourism"="camp_site"]',
     "Hotels/Stays": 'node["tourism"~"hotel|guest_house|hostel"]',
+    "Restaurants": 'node["amenity"~"restaurant|cafe|fast_food"]',
+    "Hospitals": 'node["amenity"~"hospital|clinic|doctors"]',
+    "Fuel": 'node["amenity"="fuel"]',
+    "ATMs": 'node["amenity"="atm"]',
   };
 
   // State Management for Chips
@@ -102,6 +107,43 @@ class _AroundScreenState extends State<AroundScreen> with AutomaticKeepAliveClie
     _fetchOverpassData();
   }
 
+  Future<void> _goToMyLocation() async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location services are disabled.')));
+        }
+        return;
+      }
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) return;
+      }
+      if (permission == LocationPermission.deniedForever) return;
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Locating...')));
+      }
+
+      Position position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        timeLimit: const Duration(seconds: 10),
+      );
+      
+      setState(() {
+        _center = LatLng(position.latitude, position.longitude);
+      });
+      _mapController.move(_center, 13.0);
+      _fetchOverpassData();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not get current location.')));
+      }
+    }
+  }
+
   void _applyLocalFilters() {
     if (_allFetchedElements.isEmpty) {
       setState(() {
@@ -124,7 +166,7 @@ class _AroundScreenState extends State<AroundScreen> with AutomaticKeepAliveClie
       final lon = el['lon'];
       final tags = el['tags'] ?? {};
       final name = tags['name'] ?? 'Unnamed Location';
-      final type = tags['tourism'] ?? tags['waterway'] ?? tags['natural'] ?? 'Place';
+      final type = tags['tourism'] ?? tags['waterway'] ?? tags['natural'] ?? tags['amenity'] ?? 'Place';
 
       IconData iconData;
       Color iconColor;
@@ -148,6 +190,26 @@ class _AroundScreenState extends State<AroundScreen> with AutomaticKeepAliveClie
         case 'hostel':
           iconData = Icons.hotel;
           iconColor = Colors.deepPurpleAccent;
+          break;
+        case 'hospital':
+        case 'clinic':
+        case 'doctors':
+          iconData = Icons.local_hospital;
+          iconColor = Colors.redAccent;
+          break;
+        case 'restaurant':
+        case 'cafe':
+        case 'fast_food':
+          iconData = Icons.restaurant;
+          iconColor = Colors.orange;
+          break;
+        case 'fuel':
+          iconData = Icons.local_gas_station;
+          iconColor = Colors.blueGrey;
+          break;
+        case 'atm':
+          iconData = Icons.local_atm;
+          iconColor = Colors.green;
           break;
         default:
           iconData = Icons.location_on;
@@ -520,16 +582,69 @@ class _AroundScreenState extends State<AroundScreen> with AutomaticKeepAliveClie
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: TextField(
-                      controller: _searchController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        hintText: 'Search places nearby...',
-                        hintStyle: const TextStyle(color: Colors.white54),
-                        prefixIcon: const Icon(Icons.search, color: Colors.white54),
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                      ),
-                    ),
+                  controller: _searchController,
+                  style: const TextStyle(color: Colors.white),
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (value) async {
+                    if (value.isNotEmpty) {
+                      String searchStr = value.toLowerCase().trim();
+                      
+                      // Check if it's a category keyword
+                      bool isCategory = false;
+                      if (searchStr.contains('hospital') || searchStr.contains('clinic')) {
+                        _selectedCategories.add('Hospitals');
+                        isCategory = true;
+                      } else if (searchStr.contains('restaurant') || searchStr.contains('food')) {
+                        _selectedCategories.add('Restaurants');
+                        isCategory = true;
+                      } else if (searchStr.contains('fuel') || searchStr.contains('gas')) {
+                        _selectedCategories.add('Fuel');
+                        isCategory = true;
+                      } else if (searchStr.contains('atm') || searchStr.contains('bank')) {
+                        _selectedCategories.add('ATMs');
+                        isCategory = true;
+                      } else if (searchStr.contains('waterfall')) {
+                        _selectedCategories.add('Waterfalls');
+                        isCategory = true;
+                      } else if (searchStr.contains('camp')) {
+                        _selectedCategories.add('Camping');
+                        isCategory = true;
+                      } else if (searchStr.contains('hotel') || searchStr.contains('stay')) {
+                        _selectedCategories.add('Hotels/Stays');
+                        isCategory = true;
+                      }
+
+                      if (isCategory) {
+                        _fetchOverpassData();
+                        return; // Stop here, no need to geocode
+                      }
+
+                      // Otherwise, treat it as a city search and geocode it
+                      try {
+                        List<Location> locations = await locationFromAddress(value);
+                        if (locations.isNotEmpty) {
+                          final loc = locations.first;
+                          setState(() {
+                            _center = LatLng(loc.latitude, loc.longitude);
+                            _mapController.move(_center, 13.0);
+                          });
+                          _fetchOverpassData();
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location not found. Try a city name or category.')));
+                        }
+                      }
+                    }
+                  },
+                  decoration: InputDecoration(
+                    hintText: 'Search places nearby...',
+                    hintStyle: const TextStyle(color: Colors.white54),
+                    prefixIcon: const Icon(Icons.search, color: Colors.white54),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  ),
+                ),
                   ),
                 ),
                 
@@ -633,14 +748,27 @@ class _AroundScreenState extends State<AroundScreen> with AutomaticKeepAliveClie
       ),
       floatingActionButton: Padding(
         padding: const EdgeInsets.only(bottom: 140.0),
-        child: FloatingActionButton(
-          onPressed: () {
-            if (!_isLoading) {
-              _fetchOverpassData();
-            }
-          },
-          backgroundColor: AppTheme.emerald,
-          child: const Icon(Icons.refresh, color: Colors.white),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FloatingActionButton(
+              heroTag: 'my_location_btn',
+              onPressed: _goToMyLocation,
+              backgroundColor: Colors.white,
+              child: const Icon(Icons.my_location, color: AppTheme.emerald),
+            ),
+            const SizedBox(height: 16),
+            FloatingActionButton(
+              heroTag: 'refresh_btn',
+              onPressed: () {
+                if (!_isLoading) {
+                  _fetchOverpassData();
+                }
+              },
+              backgroundColor: AppTheme.emerald,
+              child: const Icon(Icons.refresh, color: Colors.white),
+            ),
+          ],
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
