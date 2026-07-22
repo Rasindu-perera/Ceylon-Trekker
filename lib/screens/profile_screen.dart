@@ -4,6 +4,8 @@ import 'settings_screen.dart';
 import 'trip_history_screen.dart';
 import 'saved_places_screen.dart';
 import 'help_support_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../services/auth_service.dart';
 import 'login_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -11,6 +13,10 @@ class ProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    final displayName = user?.displayName ?? 'No Name Provided';
+    final email = user?.email ?? 'No Email Provided';
+
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
@@ -23,14 +29,17 @@ class ProfileScreen extends StatelessWidget {
         padding: const EdgeInsets.all(24.0),
         child: Column(
           children: [
-            const CircleAvatar(
+            CircleAvatar(
               radius: 50,
               backgroundColor: AppTheme.surfaceElevated,
-              child: Icon(Icons.person, size: 50, color: AppTheme.emerald),
+              child: Text(
+                displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
+                style: const TextStyle(fontSize: 40, color: AppTheme.emerald, fontWeight: FontWeight.bold),
+              ),
             ),
             const SizedBox(height: 16),
-            const Text('Traveler', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-            const Text('traveler@ceylontrekker.com', style: TextStyle(color: Colors.white54, fontSize: 14)),
+            Text(displayName, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+            Text(email, style: const TextStyle(color: Colors.white54, fontSize: 14)),
             const SizedBox(height: 32),
             _buildProfileOption(Icons.settings, 'Settings', () {
               Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
@@ -45,12 +54,15 @@ class ProfileScreen extends StatelessWidget {
               Navigator.push(context, MaterialPageRoute(builder: (_) => const HelpSupportScreen()));
             }),
             const SizedBox(height: 24),
-            _buildProfileOption(Icons.logout, 'Log Out', () {
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => const LoginScreen()),
-                (route) => false,
-              );
+            _buildProfileOption(Icons.logout, 'Log Out', () async {
+              await AuthService().signOut();
+              if (context.mounted) {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  (route) => false,
+                );
+              }
             }, isDestructive: true),
           ],
         ),

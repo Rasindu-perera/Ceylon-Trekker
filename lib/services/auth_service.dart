@@ -11,6 +11,7 @@ class AuthService {
 
   // Sign Up
   Future<User?> signUpWithEmail({
+    required String fullName,
     required String email,
     required String password,
   }) async {
@@ -19,19 +20,18 @@ class AuthService {
         email: email,
         password: password,
       );
+      await userCredential.user?.updateDisplayName(fullName);
       return userCredential.user;
     } on FirebaseAuthException catch (e) {
       if (e.code == 'weak-password') {
-        debugPrint('The password provided is too weak.');
+        throw 'The password provided is too weak.';
       } else if (e.code == 'email-already-in-use') {
-        debugPrint('The account already exists for that email.');
+        throw 'The account already exists for that email.';
       } else {
-        debugPrint('FirebaseAuthException: ${e.message}');
+        throw e.message ?? 'An unknown error occurred.';
       }
-      return null;
     } catch (e) {
-      debugPrint('Error during sign up: $e');
-      return null;
+      throw 'Error during sign up: $e';
     }
   }
 
@@ -48,16 +48,14 @@ class AuthService {
       return userCredential.user;
     } on FirebaseAuthException catch (e) {
       if (e.code == 'user-not-found') {
-        debugPrint('No user found for that email.');
+        throw 'No user found for that email.';
       } else if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
-        debugPrint('Invalid credentials provided.');
+        throw 'Invalid credentials provided.';
       } else {
-        debugPrint('FirebaseAuthException: ${e.message}');
+        throw e.message ?? 'An unknown error occurred.';
       }
-      return null;
     } catch (e) {
-      debugPrint('Error during sign in: $e');
-      return null;
+      throw 'Error during sign in: $e';
     }
   }
 
