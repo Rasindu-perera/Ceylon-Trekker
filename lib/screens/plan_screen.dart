@@ -4,6 +4,9 @@ import 'package:http/http.dart' as http;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import '../app/app_theme.dart';
 
 class PlanScreen extends StatefulWidget {
@@ -67,9 +70,32 @@ class _PlanScreenState extends State<PlanScreen> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        final content = data['choices'][0]['message']['content'];
         setState(() {
-          _generatedPlan = data['choices'][0]['message']['content'];
+          _generatedPlan = content;
         });
+
+        // Save to Firebase Realtime Database
+        final uid = FirebaseAuth.instance.currentUser?.uid;
+        if (uid != null) {
+          try {
+            final ref = FirebaseDatabase.instanceFor(
+              app: Firebase.app(),
+              databaseURL: 'https://ceylon-trekker-default-rtdb.asia-southeast1.firebasedatabase.app'
+            ).ref('users/$uid/trip_history');
+            
+            await ref.push().set({
+              'destination': dest,
+              'dates': dates,
+              'travelers': travelers,
+              'travelStyle': _travelStyle,
+              'plan': content,
+              'timestamp': ServerValue.timestamp,
+            });
+          } catch (e) {
+            debugPrint('Failed to save trip history: $e');
+          }
+        }
       } else {
         setState(() {
           _generatedPlan = "Error connecting to Groq API (Code: ${response.statusCode})\n${response.body}";

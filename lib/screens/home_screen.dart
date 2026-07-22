@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 import '../app/app_theme.dart';
 import '../widgets/ai_chat_sheet.dart';
 import 'profile_screen.dart';
@@ -17,6 +19,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   String activeFilter = 'All';
   final TextEditingController searchController = TextEditingController();
+  
+  String _currentLocation = "Locating...";
 
   final List<Map<String, dynamic>> _categories = [
     {'label': 'All', 'icon': Icons.explore},
@@ -26,38 +30,13 @@ class _HomeScreenState extends State<HomeScreen> {
     {'label': 'Historical', 'icon': Icons.account_balance},
   ];
 
-  // TEMPORARY DUMMY DATA FOR BULK UPLOAD
-  final List<Map<String, dynamic>> dummyPlaces = [
-  {
-    'title': 'Sigiriya Rock',
-    'category': 'Historical',
-    'extract': 'Ancient palace and fortress complex with significant archaeological importance.',
-    'image': 'https://images.unsplash.com/photo-1589175487719-74313f0c3cc0?q=80&w=500',
-    'tags': ['sigiriya', 'history']
-  },
-  {
-    'title': 'Nine Arches Bridge',
-    'category': 'Historical',
-    'extract': 'A stunning colonial-era railway bridge located in Demodara, near Ella.',
-    'image': 'https://images.unsplash.com/photo-1579998242220-41daecbfac47?q=80&w=500',
-    'tags': ['ella', 'bridge']
-  },
-  {
-    'title': 'Ella Rock',
-    'category': 'Hiking',
-    'extract': 'A beautiful hiking destination with stunning views of the hill country.',
-    'image': 'https://images.unsplash.com/photo-1552465011-b4e21bf6e79a?q=80&w=500',
-    'tags': ['ella', 'hiking']
-  }
-];
-
-
   @override
   void initState() {
     super.initState();
     searchController.addListener(() {
       setState(() {});
     });
+    _fetchUserLocation();
   }
 
   @override
@@ -66,39 +45,77 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  Future<void> bulkUploadToRealtimeDB() async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Uploading places to Realtime Database...'),
-        backgroundColor: AppTheme.emerald,
-        duration: Duration(seconds: 2),
-      ),
-    );
-
+  Future<void> _fetchUserLocation() async {
     try {
-      final DatabaseReference ref = FirebaseDatabase.instanceFor(
-        app: Firebase.app(),
-        databaseURL: 'https://ceylon-trekker-default-rtdb.asia-southeast1.firebasedatabase.app'
-      ).ref('places');
-      for (var place in dummyPlaces) {
-        await ref.push().set(place);
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        setState(() => _currentLocation = "Location Disabled");
+        return;
       }
-      
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          setState(() => _currentLocation = "Location Denied");
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        setState(() => _currentLocation = "Location Denied");
+        return;
+      }
+
+      Position position = await Geolocator.getCurrentPosition();
+
+      List<Placemark> placemarks = await placemarkFromCoordinates(
+        position.latitude, 
+        position.longitude
+      );
+
+      if (placemarks.isNotEmpty) {
+        Placemark place = placemarks.first;
+        String city = place.locality ?? place.subAdministrativeArea ?? 'Unknown';
+        String countryCode = place.isoCountryCode ?? '';
+        setState(() {
+          _currentLocation = "$city, $countryCode".toUpperCase();
+        });
+      } else {
+        setState(() => _currentLocation = "Unknown Location");
+      }
+    } catch (e) {
+      setState(() => _currentLocation = "Location Error");
+      debugPrint("Location error: $e");
+    }
+  }
+
+  Future<void> _toggleSavePlace(String placeId, Map<String, dynamic> placeData, bool isCurrentlySaved) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Upload Complete! 🎉'),
-            backgroundColor: Colors.green,
-          ),
+          const SnackBar(content: Text('Please log in to save places.')),
         );
+      }
+      return;
+    }
+
+    final ref = FirebaseDatabase.instanceFor(
+      app: Firebase.app(),
+      databaseURL: 'https://ceylon-trekker-default-rtdb.asia-southeast1.firebasedatabase.app'
+    ).ref('users/$uid/saved_places/$placeId');
+
+    try {
+      if (isCurrentlySaved) {
+        await ref.remove();
+      } else {
+        await ref.set(placeData);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Upload Failed: $e'),
-            backgroundColor: Colors.redAccent,
-          ),
+          SnackBar(content: Text('Failed to update saved places: $e')),
         );
       }
     }
@@ -147,13 +164,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.background,
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: null,
-        onPressed: bulkUploadToRealtimeDB,
-        backgroundColor: AppTheme.emerald,
-        icon: const Icon(Icons.cloud_upload, color: Colors.white),
-        label: const Text('Bulk Upload', style: TextStyle(color: Colors.white)),
-      ),
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -237,7 +247,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('CURRENT LOCATION', style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 10, fontWeight: FontWeight.bold)),
-                        const Text('COLOMBO, LK ✈', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                        Text('$_currentLocation ✈', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
                       ],
                     ),
                     const Spacer(),
@@ -448,56 +458,83 @@ class _HomeScreenState extends State<HomeScreen> {
           return _buildEmptyState('No places available in the database.');
         }
 
-        // Firebase Realtime DB returns a Map of keys to values when listing items
-        final Map<dynamic, dynamic> placesMap = snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
-        final List<Map<String, dynamic>> allFetchedPlaces = [];
-        
-        placesMap.forEach((key, value) {
-          final placeData = Map<String, dynamic>.from(value as Map);
-          placeData['id'] = key.toString(); // Keep track of the DB key for unique hero tags
-          allFetchedPlaces.add(placeData);
-        });
+        final uid = FirebaseAuth.instance.currentUser?.uid;
 
-        final query = searchController.text.toLowerCase().trim();
-
-        // Perform smart client-side filtering on the fetched data
-        final filteredPlaces = allFetchedPlaces.where((data) {
-          final category = data['category'] ?? '';
-          final title = (data['title'] ?? '').toString().toLowerCase();
-          final extract = (data['extract'] ?? '').toString().toLowerCase();
-          
-          final tagsList = data['tags'] as List<dynamic>? ?? [];
-          final tags = tagsList.join(' ').toLowerCase();
-
-          final matchesCategory = activeFilter == 'All' || category == activeFilter;
-          final matchesSearch = query.isEmpty || 
-                                title.contains(query) ||
-                                extract.contains(query) ||
-                                tags.contains(query);
-
-          return matchesCategory && matchesSearch;
-        }).toList();
-
-        if (filteredPlaces.isEmpty) {
-          return _buildEmptyState('No destinations match your search.');
+        // If no user is logged in, skip fetching saved places and pass an empty list
+        if (uid == null) {
+          return _renderFilteredPlaces(snapshot.data!.snapshot, []);
         }
 
-        return SizedBox(
-          height: 250,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            itemCount: filteredPlaces.length,
-            itemBuilder: (context, index) {
-              final doc = filteredPlaces[index];
-              return Padding(
-                padding: const EdgeInsets.only(right: 16),
-                child: _buildRecCard(doc),
-              );
-            },
-          ),
+        // Real-time listener for the user's saved places
+        return StreamBuilder<DatabaseEvent>(
+          stream: FirebaseDatabase.instanceFor(
+            app: Firebase.app(),
+            databaseURL: 'https://ceylon-trekker-default-rtdb.asia-southeast1.firebasedatabase.app'
+          ).ref('users/$uid/saved_places').onValue,
+          builder: (context, savedSnapshot) {
+            List<String> savedPlaceIds = [];
+            if (savedSnapshot.hasData && savedSnapshot.data!.snapshot.value != null) {
+              final savedMap = savedSnapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+              savedPlaceIds = savedMap.keys.map((e) => e.toString()).toList();
+            }
+            
+            return _renderFilteredPlaces(snapshot.data!.snapshot, savedPlaceIds);
+          },
         );
       },
+    );
+  }
+
+  Widget _renderFilteredPlaces(DataSnapshot placesSnapshot, List<String> savedPlaceIds) {
+    // Firebase Realtime DB returns a Map of keys to values when listing items
+    final Map<dynamic, dynamic> placesMap = placesSnapshot.value as Map<dynamic, dynamic>;
+    final List<Map<String, dynamic>> allFetchedPlaces = [];
+    
+    placesMap.forEach((key, value) {
+      final placeData = Map<String, dynamic>.from(value as Map);
+      placeData['id'] = key.toString(); // Keep track of the DB key for unique hero tags
+      allFetchedPlaces.add(placeData);
+    });
+
+    final query = searchController.text.toLowerCase().trim();
+
+    // Perform smart client-side filtering on the fetched data
+    final filteredPlaces = allFetchedPlaces.where((data) {
+      final category = data['category'] ?? '';
+      final title = (data['title'] ?? '').toString().toLowerCase();
+      final extract = (data['extract'] ?? '').toString().toLowerCase();
+      
+      final tagsList = data['tags'] as List<dynamic>? ?? [];
+      final tags = tagsList.join(' ').toLowerCase();
+
+      final matchesCategory = activeFilter == 'All' || category == activeFilter;
+      final matchesSearch = query.isEmpty || 
+                            title.contains(query) ||
+                            extract.contains(query) ||
+                            tags.contains(query);
+
+      return matchesCategory && matchesSearch;
+    }).toList();
+
+    if (filteredPlaces.isEmpty) {
+      return _buildEmptyState('No destinations match your search.');
+    }
+
+    return SizedBox(
+      height: 250,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        itemCount: filteredPlaces.length,
+        itemBuilder: (context, index) {
+          final doc = filteredPlaces[index];
+          final isSaved = savedPlaceIds.contains(doc['id']);
+          return Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: _buildRecCard(doc, isSaved),
+          );
+        },
+      ),
     );
   }
 
@@ -530,7 +567,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildRecCard(Map<String, dynamic> data) {
+  Widget _buildRecCard(Map<String, dynamic> data, bool isSaved) {
     final title = data['title'] ?? 'Unknown Place';
     final description = data['extract'] ?? '';
     final imagePath = data['image'] ?? '';
@@ -585,13 +622,20 @@ class _HomeScreenState extends State<HomeScreen> {
                   Positioned(
                     top: 12,
                     right: 12,
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.3),
-                        shape: BoxShape.circle,
+                    child: GestureDetector(
+                      onTap: () => _toggleSavePlace(id, data, isSaved),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.3),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          isSaved ? Icons.favorite : Icons.favorite_border,
+                          color: isSaved ? Colors.redAccent : Colors.white,
+                          size: 16
+                        ),
                       ),
-                      child: const Icon(Icons.favorite_border, color: Colors.white, size: 16),
                     ),
                   ),
                 ],
