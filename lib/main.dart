@@ -9,6 +9,7 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  await NotificationService().initNotifications();
   await dotenv.load(fileName: ".env");
   runApp(const CeylonTrekkerApp());
 }
