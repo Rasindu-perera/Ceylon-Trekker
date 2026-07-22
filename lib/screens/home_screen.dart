@@ -1,8 +1,8 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:firebase_database/firebase_database.dart';
 import '../app/app_theme.dart';
 import '../widgets/ai_chat_sheet.dart';
 import 'profile_screen.dart';
@@ -15,64 +15,93 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = '';
-  String _selectedCategoryId = 'all';
+  String activeFilter = 'All';
+  final TextEditingController searchController = TextEditingController();
 
   final List<Map<String, dynamic>> _categories = [
-    {'label': 'All', 'id': 'all', 'icon': Icons.explore},
-    {'label': 'Hiking', 'id': 'hiking', 'icon': Icons.hiking},
-    {'label': 'Camping', 'id': 'camping', 'icon': Icons.park},
-    {'label': 'Waterfalls', 'id': 'waterfalls', 'icon': Icons.water_drop},
-    {'label': 'Historical', 'id': 'historical', 'icon': Icons.account_balance},
+    {'label': 'All', 'icon': Icons.explore},
+    {'label': 'Hiking', 'icon': Icons.hiking},
+    {'label': 'Camping', 'icon': Icons.park},
+    {'label': 'Waterfalls', 'icon': Icons.water_drop},
+    {'label': 'Historical', 'icon': Icons.account_balance},
   ];
 
-  // Dynamic Wikipedia Data
-  List<Map<String, dynamic>> recommendedPlaces = [];
-  bool isLoadingPlaces = true;
-  final List<String> placeTitles = ['Sigiriya', 'Ella,_Sri_Lanka', 'Yala_National_Park', 'Galle_Fort', 'Horton_Plains_National_Park'];
+  // TEMPORARY DUMMY DATA FOR BULK UPLOAD
+  final List<Map<String, dynamic>> dummyPlaces = [
+  {
+    'title': 'Sigiriya Rock',
+    'category': 'Historical',
+    'extract': 'Ancient palace and fortress complex with significant archaeological importance.',
+    'image': 'https://images.unsplash.com/photo-1589175487719-74313f0c3cc0?q=80&w=500',
+    'tags': ['sigiriya', 'history']
+  },
+  {
+    'title': 'Nine Arches Bridge',
+    'category': 'Historical',
+    'extract': 'A stunning colonial-era railway bridge located in Demodara, near Ella.',
+    'image': 'https://images.unsplash.com/photo-1579998242220-41daecbfac47?q=80&w=500',
+    'tags': ['ella', 'bridge']
+  },
+  {
+    'title': 'Ella Rock',
+    'category': 'Hiking',
+    'extract': 'A beautiful hiking destination with stunning views of the hill country.',
+    'image': 'https://images.unsplash.com/photo-1552465011-b4e21bf6e79a?q=80&w=500',
+    'tags': ['ella', 'hiking']
+  }
+];
+
 
   @override
   void initState() {
     super.initState();
-    _searchController.addListener(() {
-      setState(() {
-        _searchQuery = _searchController.text;
-      });
+    searchController.addListener(() {
+      setState(() {});
     });
-    fetchPlacesData();
-  }
-
-  Future<void> fetchPlacesData() async {
-    List<Map<String, dynamic>> fetchedPlaces = [];
-    for (String title in placeTitles) {
-      try {
-        final response = await http.get(Uri.parse('https://en.wikipedia.org/api/rest_v1/page/summary/$title'));
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
-          fetchedPlaces.add({
-            'title': data['title'],
-            'extract': data['extract'],
-            'image': data['thumbnail']?['source'] ?? '',
-          });
-        }
-      } catch (e) {
-        debugPrint('Failed to fetch $title: $e');
-      }
-    }
-    
-    if (mounted) {
-      setState(() {
-        recommendedPlaces = fetchedPlaces;
-        isLoadingPlaces = false;
-      });
-    }
   }
 
   @override
   void dispose() {
-    _searchController.dispose();
+    searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> bulkUploadToRealtimeDB() async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Uploading places to Realtime Database...'),
+        backgroundColor: AppTheme.emerald,
+        duration: Duration(seconds: 2),
+      ),
+    );
+
+    try {
+      final DatabaseReference ref = FirebaseDatabase.instanceFor(
+        app: Firebase.app(),
+        databaseURL: 'https://ceylon-trekker-default-rtdb.asia-southeast1.firebasedatabase.app'
+      ).ref('places');
+      for (var place in dummyPlaces) {
+        await ref.push().set(place);
+      }
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Upload Complete! 🎉'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Upload Failed: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
   }
 
   void _openAiGuideSheet() {
@@ -106,7 +135,10 @@ class _HomeScreenState extends State<HomeScreen> {
     
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
-        _searchController.text = 'Ella';
+        setState(() {
+          activeFilter = 'All';
+          searchController.text = 'Ella';
+        });
       }
     });
   }
@@ -115,6 +147,13 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.background,
+      floatingActionButton: FloatingActionButton.extended(
+        heroTag: null,
+        onPressed: bulkUploadToRealtimeDB,
+        backgroundColor: AppTheme.emerald,
+        icon: const Icon(Icons.cloud_upload, color: Colors.white),
+        label: const Text('Bulk Upload', style: TextStyle(color: Colors.white)),
+      ),
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -131,8 +170,12 @@ class _HomeScreenState extends State<HomeScreen> {
             
             const SizedBox(height: 32),
             
-            // Recommended For You
-            _buildSectionHeader('Recommended for You', null, icon: Icons.trending_up),
+            // Recommended / Searched Places
+            _buildSectionHeader(
+              searchController.text.isNotEmpty || activeFilter != 'All' ? 'Search Results' : 'Recommended for You', 
+              null, 
+              icon: Icons.trending_up
+            ),
             const SizedBox(height: 16),
             _buildRecommendations(),
             
@@ -253,8 +296,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         borderRadius: BorderRadius.circular(32),
                       ),
                       child: TextField(
-                        controller: _searchController,
+                        controller: searchController,
                         style: const TextStyle(color: Colors.black87),
+                        textInputAction: TextInputAction.search,
                         decoration: InputDecoration(
                           hintText: 'Search destinations, experiences...',
                           hintStyle: const TextStyle(color: Colors.black45),
@@ -330,14 +374,15 @@ class _HomeScreenState extends State<HomeScreen> {
         itemCount: _categories.length,
         itemBuilder: (context, index) {
           final cat = _categories[index];
-          final isSelected = cat['id'] == _selectedCategoryId;
+          final isSelected = cat['label'] == activeFilter;
           return _buildChip(
             cat['label'], 
             cat['icon'], 
             isSelected: isSelected,
             onTap: () {
               setState(() {
-                _selectedCategoryId = cat['id'];
+                activeFilter = cat['label'];
+                searchController.clear();
               });
             },
           );
@@ -375,130 +420,207 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildRecommendations() {
-    if (isLoadingPlaces) {
-      return SizedBox(
-        height: 250,
-        child: ListView.builder(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          itemCount: 3,
-          itemBuilder: (context, index) {
-            return Padding(
-              padding: const EdgeInsets.only(right: 16),
-              child: Container(
-                width: 220,
-                decoration: BoxDecoration(
-                  color: AppTheme.surfaceElevated,
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: const Center(
-                  child: CircularProgressIndicator(color: AppTheme.emerald),
-                ),
-              ),
-            );
-          },
-        ),
-      );
-    }
-
-    final filtered = recommendedPlaces.where((place) {
-      final title = place['title'] as String;
-      return title.toLowerCase().contains(_searchQuery.toLowerCase());
-    }).toList();
-
-    if (filtered.isEmpty) {
-      return const SizedBox(
-        height: 250,
-        child: Center(
-          child: Text('No destinations found.', style: TextStyle(color: Colors.white54)),
-        ),
-      );
-    }
-
-    return SizedBox(
-      height: 250,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        itemCount: filtered.length,
-        itemBuilder: (context, index) {
-          final item = filtered[index];
-          return Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: _buildRecCard(
-              title: item['title'] ?? '',
-              description: item['extract'] ?? '',
-              imagePath: item['image'] ?? '',
+    return StreamBuilder<DatabaseEvent>(
+      stream: FirebaseDatabase.instanceFor(
+        app: Firebase.app(),
+        databaseURL: 'https://ceylon-trekker-default-rtdb.asia-southeast1.firebasedatabase.app'
+      ).ref('places').onValue,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox(
+            height: 250,
+            child: Center(
+              child: CircularProgressIndicator(color: AppTheme.emerald),
             ),
           );
-        },
+        }
+
+        if (snapshot.hasError) {
+          return SizedBox(
+            height: 250,
+            child: Center(
+              child: Text('Error loading places: ${snapshot.error}', style: const TextStyle(color: Colors.redAccent)),
+            ),
+          );
+        }
+
+        if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
+          return _buildEmptyState('No places available in the database.');
+        }
+
+        // Firebase Realtime DB returns a Map of keys to values when listing items
+        final Map<dynamic, dynamic> placesMap = snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+        final List<Map<String, dynamic>> allFetchedPlaces = [];
+        
+        placesMap.forEach((key, value) {
+          final placeData = Map<String, dynamic>.from(value as Map);
+          placeData['id'] = key.toString(); // Keep track of the DB key for unique hero tags
+          allFetchedPlaces.add(placeData);
+        });
+
+        final query = searchController.text.toLowerCase().trim();
+
+        // Perform smart client-side filtering on the fetched data
+        final filteredPlaces = allFetchedPlaces.where((data) {
+          final category = data['category'] ?? '';
+          final title = (data['title'] ?? '').toString().toLowerCase();
+          final extract = (data['extract'] ?? '').toString().toLowerCase();
+          
+          final tagsList = data['tags'] as List<dynamic>? ?? [];
+          final tags = tagsList.join(' ').toLowerCase();
+
+          final matchesCategory = activeFilter == 'All' || category == activeFilter;
+          final matchesSearch = query.isEmpty || 
+                                title.contains(query) ||
+                                extract.contains(query) ||
+                                tags.contains(query);
+
+          return matchesCategory && matchesSearch;
+        }).toList();
+
+        if (filteredPlaces.isEmpty) {
+          return _buildEmptyState('No destinations match your search.');
+        }
+
+        return SizedBox(
+          height: 250,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            itemCount: filteredPlaces.length,
+            itemBuilder: (context, index) {
+              final doc = filteredPlaces[index];
+              return Padding(
+                padding: const EdgeInsets.only(right: 16),
+                child: _buildRecCard(doc),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildEmptyState(String message) {
+    return SizedBox(
+      height: 250,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.search_off, color: Colors.white.withValues(alpha: 0.3), size: 48),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              style: const TextStyle(color: Colors.white54, fontSize: 16),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  activeFilter = 'All';
+                  searchController.clear();
+                });
+              },
+              child: const Text('Clear Filters', style: TextStyle(color: AppTheme.emerald)),
+            )
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildRecCard({required String title, required String description, required String imagePath}) {
-    return Container(
-      width: 220,
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceElevated,
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Image
-          Expanded(
-            child: Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                  child: imagePath.isNotEmpty 
-                      ? Image.network(
-                          imagePath,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          errorBuilder: (ctx, error, stack) => Container(color: Colors.grey.shade800),
-                        )
-                      : Container(color: Colors.grey.shade800),
-                ),
-                Positioned(
-                  top: 12,
-                  right: 12,
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.3),
-                      shape: BoxShape.circle,
+  Widget _buildRecCard(Map<String, dynamic> data) {
+    final title = data['title'] ?? 'Unknown Place';
+    final description = data['extract'] ?? '';
+    final imagePath = data['image'] ?? '';
+    final String id = data['id'] ?? title.replaceAll(' ', '_');
+    
+    // Guaranteed unique hero tag using Firebase DB key
+    final String heroTag = 'place_$id';
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PlaceDetailScreen(placeData: data, heroTag: heroTag),
+          ),
+        );
+      },
+      child: Container(
+        width: 220,
+        decoration: BoxDecoration(
+          color: AppTheme.surfaceElevated,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Image
+            Expanded(
+              child: Stack(
+                children: [
+                  Hero(
+                    tag: heroTag,
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                      child: imagePath.isNotEmpty 
+                          ? Image.network(
+                              imagePath,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                              headers: const {'User-Agent': 'CeylonTrekkerApp/1.0'},
+                              errorBuilder: (ctx, error, stack) => Container(
+                                color: Colors.grey.shade800,
+                                child: const Center(child: Icon(Icons.broken_image, color: Colors.white54, size: 40)),
+                              ),
+                            )
+                          : Container(
+                              color: Colors.grey.shade800,
+                              child: const Center(child: Icon(Icons.image, color: Colors.white54, size: 40)),
+                            ),
                     ),
-                    child: const Icon(Icons.favorite_border, color: Colors.white, size: 16),
                   ),
-                ),
-              ],
+                  Positioned(
+                    top: 12,
+                    right: 12,
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.3),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.favorite_border, color: Colors.white, size: 16),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          // Details
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  description,
-                  style: const TextStyle(color: Colors.white54, fontSize: 12),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+            // Details
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    description,
+                    style: const TextStyle(color: Colors.white54, fontSize: 12),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -508,7 +630,7 @@ class _HomeScreenState extends State<HomeScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 24),
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF0C2C24), // Dark deep green matching mockup
+        color: const Color(0xFF0C2C24),
         borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
@@ -547,4 +669,79 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-}
+}
+
+class PlaceDetailScreen extends StatelessWidget {
+  final Map<String, dynamic> placeData;
+  final String heroTag;
+
+  const PlaceDetailScreen({super.key, required this.placeData, required this.heroTag});
+
+  @override
+  Widget build(BuildContext context) {
+    final title = placeData['title'] ?? 'Unknown Place';
+    final description = placeData['extract'] ?? 'No description available.';
+    final imagePath = placeData['image'] ?? '';
+
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            expandedHeight: 300,
+            pinned: true,
+            backgroundColor: AppTheme.background,
+            iconTheme: const IconThemeData(color: Colors.white),
+            flexibleSpace: FlexibleSpaceBar(
+              background: Hero(
+                tag: heroTag,
+                child: imagePath.isNotEmpty
+                    ? Image.network(
+                        imagePath,
+                        fit: BoxFit.cover,
+                        headers: const {'User-Agent': 'CeylonTrekkerApp/1.0'},
+                        errorBuilder: (ctx, error, stack) => Container(
+                          color: Colors.grey.shade800,
+                          child: const Center(child: Icon(Icons.broken_image, color: Colors.white54, size: 64)),
+                        ),
+                      )
+                    : Container(
+                        color: Colors.grey.shade800,
+                        child: const Center(child: Icon(Icons.image, color: Colors.white54, size: 64)),
+                      ),
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    description,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 16,
+                      height: 1.6,
+                    ),
+                  ),
+                  const SizedBox(height: 48),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
