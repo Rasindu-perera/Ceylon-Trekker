@@ -13,60 +13,70 @@ class ProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    final displayName = user?.displayName ?? 'No Name Provided';
-    final email = user?.email ?? 'No Email Provided';
+    return StreamBuilder<User?>(
+      initialData: FirebaseAuth.instance.currentUser,
+      stream: FirebaseAuth.instance.userChanges(),
+      builder: (context, snapshot) {
+        final user = snapshot.data;
+        final displayName = user?.displayName ?? 'No Name Provided';
+        final email = user?.email ?? 'No Email Provided';
+        final photoUrl = user?.photoURL;
 
-    return Scaffold(
-      backgroundColor: AppTheme.background,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: const Text('Profile', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          children: [
-            CircleAvatar(
-              radius: 50,
-              backgroundColor: AppTheme.surfaceElevated,
-              child: Text(
-                displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
-                style: const TextStyle(fontSize: 40, color: AppTheme.emerald, fontWeight: FontWeight.bold),
-              ),
+        return Scaffold(
+          backgroundColor: AppTheme.background,
+          appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            title: const Text('Profile', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            iconTheme: const IconThemeData(color: Colors.white),
+          ),
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              children: [
+                CircleAvatar(
+                  radius: 50,
+                  backgroundColor: AppTheme.surfaceElevated,
+                  backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
+                  child: photoUrl == null 
+                      ? Text(
+                          displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
+                          style: const TextStyle(fontSize: 40, color: AppTheme.emerald, fontWeight: FontWeight.bold),
+                        )
+                      : null,
+                ),
+                const SizedBox(height: 16),
+                Text(displayName, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                Text(email, style: const TextStyle(color: Colors.white54, fontSize: 14)),
+                const SizedBox(height: 32),
+                _buildProfileOption(Icons.settings, 'Settings', () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+                }),
+                _buildProfileOption(Icons.history, 'Trip History', () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const TripHistoryScreen()));
+                }),
+                _buildProfileOption(Icons.favorite, 'Saved Places', () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const SavedPlacesScreen()));
+                }),
+                _buildProfileOption(Icons.help_outline, 'Help & Support', () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const HelpSupportScreen()));
+                }),
+                const SizedBox(height: 24),
+                _buildProfileOption(Icons.logout, 'Log Out', () async {
+                  await AuthService().signOut();
+                  if (context.mounted) {
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      (route) => false,
+                    );
+                  }
+                }, isDestructive: true),
+              ],
             ),
-            const SizedBox(height: 16),
-            Text(displayName, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-            Text(email, style: const TextStyle(color: Colors.white54, fontSize: 14)),
-            const SizedBox(height: 32),
-            _buildProfileOption(Icons.settings, 'Settings', () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
-            }),
-            _buildProfileOption(Icons.history, 'Trip History', () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const TripHistoryScreen()));
-            }),
-            _buildProfileOption(Icons.favorite, 'Saved Places', () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const SavedPlacesScreen()));
-            }),
-            _buildProfileOption(Icons.help_outline, 'Help & Support', () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const HelpSupportScreen()));
-            }),
-            const SizedBox(height: 24),
-            _buildProfileOption(Icons.logout, 'Log Out', () async {
-              await AuthService().signOut();
-              if (context.mounted) {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                  (route) => false,
-                );
-              }
-            }, isDestructive: true),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 

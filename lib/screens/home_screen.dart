@@ -1,24 +1,11 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../app/app_theme.dart';
 import '../widgets/ai_chat_sheet.dart';
 import 'profile_screen.dart';
-
-class Recommendation {
-  final String title;
-  final String location;
-  final String rating;
-  final String imagePath;
-  final String categoryId;
-
-  Recommendation({
-    required this.title,
-    required this.location,
-    required this.rating,
-    required this.imagePath,
-    required this.categoryId,
-  });
-}
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -40,29 +27,10 @@ class _HomeScreenState extends State<HomeScreen> {
     {'label': 'Historical', 'id': 'historical', 'icon': Icons.account_balance},
   ];
 
-  final List<Recommendation> _allRecommendations = [
-    Recommendation(
-      title: 'Ella Rock Peak Trail',
-      location: 'Badulla district',
-      rating: '4.9',
-      imagePath: 'assets/images/ella_rock.png',
-      categoryId: 'hiking',
-    ),
-    Recommendation(
-      title: 'Ancient Ruins',
-      location: 'North Central',
-      rating: '4.8',
-      imagePath: 'assets/images/ancient_ruins.png',
-      categoryId: 'historical',
-    ),
-    Recommendation(
-      title: 'Knuckles Mountain Range',
-      location: 'Central Province',
-      rating: '4.7',
-      imagePath: 'assets/images/ella_rock.png', 
-      categoryId: 'camping',
-    ),
-  ];
+  // Dynamic Wikipedia Data
+  List<Map<String, dynamic>> recommendedPlaces = [];
+  bool isLoadingPlaces = true;
+  final List<String> placeTitles = ['Sigiriya', 'Ella,_Sri_Lanka', 'Yala_National_Park', 'Galle_Fort', 'Horton_Plains_National_Park'];
 
   @override
   void initState() {
@@ -72,21 +40,39 @@ class _HomeScreenState extends State<HomeScreen> {
         _searchQuery = _searchController.text;
       });
     });
+    fetchPlacesData();
+  }
+
+  Future<void> fetchPlacesData() async {
+    List<Map<String, dynamic>> fetchedPlaces = [];
+    for (String title in placeTitles) {
+      try {
+        final response = await http.get(Uri.parse('https://en.wikipedia.org/api/rest_v1/page/summary/$title'));
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          fetchedPlaces.add({
+            'title': data['title'],
+            'extract': data['extract'],
+            'image': data['thumbnail']?['source'] ?? '',
+          });
+        }
+      } catch (e) {
+        debugPrint('Failed to fetch $title: $e');
+      }
+    }
+    
+    if (mounted) {
+      setState(() {
+        recommendedPlaces = fetchedPlaces;
+        isLoadingPlaces = false;
+      });
+    }
   }
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
-  }
-
-  List<Recommendation> get _filteredRecommendations {
-    return _allRecommendations.where((item) {
-      final matchesSearch = item.title.toLowerCase().contains(_searchQuery.toLowerCase()) || 
-                            item.location.toLowerCase().contains(_searchQuery.toLowerCase());
-      final matchesCategory = _selectedCategoryId == 'all' || item.categoryId == _selectedCategoryId;
-      return matchesSearch && matchesCategory;
-    }).toList();
   }
 
   void _openAiGuideSheet() {
@@ -222,10 +208,18 @@ class _HomeScreenState extends State<HomeScreen> {
                           shape: BoxShape.circle,
                           border: Border.all(color: AppTheme.emerald, width: 2),
                         ),
-                        child: const CircleAvatar(
-                          radius: 18,
-                          backgroundColor: Colors.black45,
-                          child: Icon(Icons.person, color: Colors.white, size: 20),
+                        child: StreamBuilder<User?>(
+                          initialData: FirebaseAuth.instance.currentUser,
+                          stream: FirebaseAuth.instance.userChanges(),
+                          builder: (context, snapshot) {
+                            final photoUrl = snapshot.data?.photoURL;
+                            return CircleAvatar(
+                              radius: 18,
+                              backgroundColor: Colors.black45,
+                              backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
+                              child: photoUrl == null ? const Icon(Icons.person, color: Colors.white, size: 20) : null,
+                            );
+                          },
                         ),
                       ),
                     ),
@@ -381,11 +375,40 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildRecommendations() {
-    final items = _filteredRecommendations;
-    
-    if (items.isEmpty) {
+    if (isLoadingPlaces) {
+      return SizedBox(
+        height: 250,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          itemCount: 3,
+          itemBuilder: (context, index) {
+            return Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: Container(
+                width: 220,
+                decoration: BoxDecoration(
+                  color: AppTheme.surfaceElevated,
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: const Center(
+                  child: CircularProgressIndicator(color: AppTheme.emerald),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    }
+
+    final filtered = recommendedPlaces.where((place) {
+      final title = place['title'] as String;
+      return title.toLowerCase().contains(_searchQuery.toLowerCase());
+    }).toList();
+
+    if (filtered.isEmpty) {
       return const SizedBox(
-        height: 280,
+        height: 250,
         child: Center(
           child: Text('No destinations found.', style: TextStyle(color: Colors.white54)),
         ),
@@ -393,20 +416,19 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     return SizedBox(
-      height: 280,
+      height: 250,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 24),
-        itemCount: items.length,
+        itemCount: filtered.length,
         itemBuilder: (context, index) {
-          final item = items[index];
+          final item = filtered[index];
           return Padding(
             padding: const EdgeInsets.only(right: 16),
             child: _buildRecCard(
-              title: item.title,
-              location: item.location,
-              rating: item.rating,
-              imagePath: item.imagePath,
+              title: item['title'] ?? '',
+              description: item['extract'] ?? '',
+              imagePath: item['image'] ?? '',
             ),
           );
         },
@@ -414,7 +436,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildRecCard({required String title, required String location, required String rating, required String imagePath}) {
+  Widget _buildRecCard({required String title, required String description, required String imagePath}) {
     return Container(
       width: 220,
       decoration: BoxDecoration(
@@ -430,11 +452,14 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 ClipRRect(
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                  child: Image.asset(
-                    imagePath,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                  ),
+                  child: imagePath.isNotEmpty 
+                      ? Image.network(
+                          imagePath,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (ctx, error, stack) => Container(color: Colors.grey.shade800),
+                        )
+                      : Container(color: Colors.grey.shade800),
                 ),
                 Positioned(
                   top: 12,
@@ -457,36 +482,18 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Row(
-                      children: [
-                        const Icon(Icons.star_border, color: AppTheme.emerald, size: 14),
-                        const SizedBox(width: 4),
-                        Text(rating, style: const TextStyle(color: AppTheme.emerald, fontSize: 12, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                  ],
+                Text(
+                  title,
+                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    const Icon(Icons.location_on_outlined, color: Colors.white54, size: 14),
-                    const SizedBox(width: 4),
-                    Text(
-                      location,
-                      style: const TextStyle(color: Colors.white54, fontSize: 12),
-                    ),
-                  ],
+                Text(
+                  description,
+                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
