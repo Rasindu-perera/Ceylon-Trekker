@@ -172,7 +172,7 @@ class _HomeScreenState extends State<HomeScreen> {
             // Hero Section with Search Bar
             _buildHeroSection(),
             
-            const SizedBox(height: 32),
+            const SizedBox(height: 0),
             
             // Recommended / Searched Places
             _buildSectionHeader(
@@ -183,17 +183,20 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 16),
             _buildRecommendations(),
             
-            const SizedBox(height: 140),
+            const SizedBox(height: 200),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.push(context, MaterialPageRoute(builder: (context) => const PlanScreen()));
-        },
-        backgroundColor: AppTheme.emerald,
-        icon: const Icon(Icons.smart_toy, color: Colors.white),
-        label: const Text('AI Planner', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 110.0),
+        child: FloatingActionButton.extended(
+          onPressed: () {
+            Navigator.push(context, MaterialPageRoute(builder: (context) => const PlanScreen()));
+          },
+          backgroundColor: AppTheme.emerald,
+          icon: const Icon(Icons.smart_toy, color: Colors.white),
+          label: const Text('AI Planner', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        ),
       ),
     );
   }
@@ -202,22 +205,23 @@ class _HomeScreenState extends State<HomeScreen> {
     return Stack(
       children: [
         // Hero Image with Gradient Fade
-        ShaderMask(
-          shaderCallback: (rect) {
-            return const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Colors.black, Colors.transparent],
-              stops: [0.6, 1.0],
-            ).createShader(Rect.fromLTRB(0, 0, rect.width, rect.height));
-          },
-          blendMode: BlendMode.dstIn,
-          child: Image.asset(
-            'assets/images/hero_sri_lanka.png',
-            height: 450,
-            width: double.infinity,
-            fit: BoxFit.cover,
-            alignment: Alignment.topCenter,
+        Positioned.fill(
+          child: ShaderMask(
+            shaderCallback: (rect) {
+              return const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Colors.black, Colors.transparent],
+                stops: [0.6, 1.0],
+              ).createShader(Rect.fromLTRB(0, 0, rect.width, rect.height));
+            },
+            blendMode: BlendMode.dstIn,
+            child: Image.asset(
+              'assets/images/hero_sri_lanka.png',
+              width: double.infinity,
+              fit: BoxFit.cover,
+              alignment: Alignment.topCenter,
+            ),
           ),
         ),
         
@@ -290,7 +294,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 
-                const SizedBox(height: 48),
+                const SizedBox(height: 24),
                 
                 // Search Bar
                 ClipRRect(
@@ -310,17 +314,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           hintText: 'Search destinations, experiences...',
                           hintStyle: const TextStyle(color: Colors.black45),
                           prefixIcon: const Icon(Icons.search, color: Colors.black45),
-                          suffixIcon: GestureDetector(
-                            onTap: _simulateVoiceSearch,
-                            child: Container(
-                              margin: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: AppTheme.emerald.withValues(alpha: 0.2),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.mic, color: AppTheme.emerald, size: 20),
-                            ),
-                          ),
                           border: InputBorder.none,
                           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                         ),

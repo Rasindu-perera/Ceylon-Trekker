@@ -147,6 +147,24 @@ class TripHistoryScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _deleteTrip(BuildContext context, String tripId) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      await FirebaseDatabase.instanceFor(
+        app: Firebase.app(),
+        databaseURL: 'https://ceylon-trekker-default-rtdb.asia-southeast1.firebasedatabase.app'
+      ).ref('users/$uid/trip_history/$tripId').remove();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Trip deleted.')));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error deleting trip: $e')));
+      }
+    }
+  }
+
   Future<void> _startNavigation(BuildContext context, List<dynamic> places) async {
     final validPlaces = places.where((p) {
       final map = p as Map<dynamic, dynamic>?;
@@ -220,10 +238,19 @@ class TripHistoryScreen extends StatelessWidget {
                   style: const TextStyle(color: Colors.white54)
                 ),
               ),
-              trailing: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(12)),
-                child: const Text('AI Plan', style: TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold)),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(12)),
+                    child: const Text('AI Plan', style: TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold)),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.redAccent),
+                    onPressed: () => _deleteTrip(context, trip['id']),
+                  ),
+                ],
               ),
             ),
           ),
