@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "926264768467",
+    "project_id": "ceylon-trekker",
+    "storage_bucket": "ceylon-trekker.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:926264768467:android:694bbbbf7e0d26a34f6126",
+        "android_client_info": {
+          "package_name": "com.example.ceylon_trekker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyClMdiTieWjDc1iuZ5euI8RRIoVxXO2JBI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
