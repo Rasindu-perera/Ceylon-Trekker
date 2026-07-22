@@ -20,6 +20,9 @@ class _AroundScreenState extends State<AroundScreen> with AutomaticKeepAliveClie
   List<LatLng> _routePoints = [];
   bool _isLoading = true;
   List<Marker> _markers = [];
+  String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
+  List<dynamic> _allFetchedElements = [];
 
   // Category Configuration
   final Map<String, String> _categories = {
@@ -39,6 +42,19 @@ class _AroundScreenState extends State<AroundScreen> with AutomaticKeepAliveClie
   void initState() {
     super.initState();
     _initLocationAndData();
+    _searchController.addListener(() {
+      setState(() {
+        _searchQuery = _searchController.text.toLowerCase().trim();
+      });
+      // Filter locally since we already fetched everything in bounding box for the selected categories
+      _applyLocalFilters();
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _initLocationAndData() async {
@@ -86,6 +102,81 @@ class _AroundScreenState extends State<AroundScreen> with AutomaticKeepAliveClie
     _fetchOverpassData();
   }
 
+  void _applyLocalFilters() {
+    if (_allFetchedElements.isEmpty) {
+      setState(() {
+        _markers = [_buildUserMarker()];
+      });
+      return;
+    }
+
+    final filtered = _allFetchedElements.where((el) {
+      if (_searchQuery.isEmpty) return true;
+      final tags = el['tags'] ?? {};
+      final name = (tags['name'] ?? '').toString().toLowerCase();
+      final type = (tags['tourism'] ?? tags['waterway'] ?? tags['natural'] ?? '').toString().toLowerCase();
+      
+      return name.contains(_searchQuery) || type.contains(_searchQuery);
+    }).toList();
+
+    final newMarkers = filtered.map((el) {
+      final lat = el['lat'];
+      final lon = el['lon'];
+      final tags = el['tags'] ?? {};
+      final name = tags['name'] ?? 'Unnamed Location';
+      final type = tags['tourism'] ?? tags['waterway'] ?? tags['natural'] ?? 'Place';
+
+      IconData iconData;
+      Color iconColor;
+
+      switch (type) {
+        case 'waterfall':
+          iconData = Icons.water_drop;
+          iconColor = Colors.lightBlueAccent;
+          break;
+        case 'viewpoint':
+        case 'peak':
+          iconData = Icons.landscape;
+          iconColor = Colors.orangeAccent;
+          break;
+        case 'camp_site':
+          iconData = Icons.park;
+          iconColor = Colors.greenAccent;
+          break;
+        case 'hotel':
+        case 'guest_house':
+        case 'hostel':
+          iconData = Icons.hotel;
+          iconColor = Colors.deepPurpleAccent;
+          break;
+        default:
+          iconData = Icons.location_on;
+          iconColor = AppTheme.emerald;
+      }
+
+      return Marker(
+        width: 44,
+        height: 44,
+        point: LatLng(lat, lon),
+        child: GestureDetector(
+          onTap: () => _showMarkerDetails(name, type, lat, lon),
+          child: Container(
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.2),
+              shape: BoxShape.circle,
+              border: Border.all(color: iconColor, width: 2),
+            ),
+            child: Icon(iconData, color: iconColor, size: 24),
+          ),
+        ),
+      );
+    }).toList();
+
+    setState(() {
+      _markers = [_buildUserMarker(), ...newMarkers];
+    });
+  }
+
   Future<void> _fetchOverpassData() async {
     if (_selectedCategories.isEmpty) {
       setState(() {
@@ -128,66 +219,11 @@ class _AroundScreenState extends State<AroundScreen> with AutomaticKeepAliveClie
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final elements = data['elements'] as List;
+        _allFetchedElements = data['elements'] as List;
+        
+        _applyLocalFilters();
 
-        final newMarkers = elements.map((el) {
-          final lat = el['lat'];
-          final lon = el['lon'];
-          final tags = el['tags'] ?? {};
-          final name = tags['name'] ?? 'Unnamed Location';
-          final type = tags['tourism'] ?? tags['waterway'] ?? tags['natural'] ?? 'Place';
-
-          IconData iconData;
-          Color iconColor;
-
-          switch (type) {
-            case 'waterfall':
-              iconData = Icons.water_drop;
-              iconColor = Colors.lightBlueAccent;
-              break;
-            case 'viewpoint':
-            case 'peak':
-              iconData = Icons.landscape;
-              iconColor = Colors.orangeAccent;
-              break;
-            case 'camp_site':
-              iconData = Icons.park;
-              iconColor = Colors.greenAccent;
-              break;
-            case 'hotel':
-            case 'guest_house':
-            case 'hostel':
-              iconData = Icons.hotel;
-              iconColor = Colors.deepPurpleAccent;
-              break;
-            default:
-              iconData = Icons.location_on;
-              iconColor = AppTheme.emerald;
-          }
-
-          return Marker(
-            width: 44,
-            height: 44,
-            point: LatLng(lat, lon),
-            child: GestureDetector(
-              onTap: () => _showMarkerDetails(name, type, lat, lon),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: iconColor.withValues(alpha: 0.2),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: iconColor, width: 2),
-                ),
-                child: Icon(iconData, color: iconColor, size: 24),
-              ),
-            ),
-          );
-        }).toList();
-
-        setState(() {
-          _markers = [_buildUserMarker(), ...newMarkers];
-        });
-
-        if (elements.isEmpty) {
+        if (_allFetchedElements.isEmpty) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('No places found nearby for these categories.')),
@@ -435,6 +471,7 @@ class _AroundScreenState extends State<AroundScreen> with AutomaticKeepAliveClie
   Widget build(BuildContext context) {
     super.build(context);
     return Scaffold(
+      backgroundColor: AppTheme.background,
       body: Stack(
         children: [
           FlutterMap(
@@ -446,7 +483,7 @@ class _AroundScreenState extends State<AroundScreen> with AutomaticKeepAliveClie
             children: [
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.ceylontrekker.app',
+                userAgentPackageName: 'com.example.ceylon_trekker',
               ),
               if (_routePoints.isNotEmpty)
                 PolylineLayer(
@@ -470,48 +507,75 @@ class _AroundScreenState extends State<AroundScreen> with AutomaticKeepAliveClie
               ),
             ),
 
-          // Top Filter Chips
           SafeArea(
-            child: Container(
-              height: 60,
-              margin: const EdgeInsets.only(top: 8),
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                children: _categories.keys.map((String key) {
-                  final isSelected = _selectedCategories.contains(key);
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: FilterChip(
-                      label: Text(key),
-                      selected: isSelected,
-                      onSelected: (bool selected) {
-                        setState(() {
-                          if (selected) {
-                            _selectedCategories.add(key);
-                          } else {
-                            _selectedCategories.remove(key);
-                          }
-                        });
-                        _fetchOverpassData();
-                      },
-                      backgroundColor: AppTheme.surfaceElevated,
-                      selectedColor: AppTheme.emerald,
-                      checkmarkColor: Colors.white,
-                      labelStyle: TextStyle(
-                        color: isSelected ? Colors.white : Colors.white70,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                        side: BorderSide(
-                          color: isSelected ? AppTheme.emerald : Colors.white.withValues(alpha: 0.1),
-                        ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Search Bar
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: AppTheme.surfaceElevated,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: TextField(
+                      controller: _searchController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: 'Search places nearby...',
+                        hintStyle: const TextStyle(color: Colors.white54),
+                        prefixIcon: const Icon(Icons.search, color: Colors.white54),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                       ),
                     ),
-                  );
-                }).toList(),
-              ),
+                  ),
+                ),
+                
+                // Category Filters
+                Container(
+                  height: 60,
+                  margin: const EdgeInsets.only(top: 8),
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    children: _categories.keys.map((String cat) {
+                      final isSelected = _selectedCategories.contains(cat);
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: FilterChip(
+                          label: Text(cat),
+                          selected: isSelected,
+                          onSelected: (bool selected) {
+                            setState(() {
+                              if (selected) {
+                                _selectedCategories.add(cat);
+                              } else {
+                                _selectedCategories.remove(cat);
+                              }
+                            });
+                            _fetchOverpassData();
+                          },
+                          backgroundColor: AppTheme.surfaceElevated,
+                          selectedColor: AppTheme.emerald,
+                          checkmarkColor: Colors.white,
+                          labelStyle: TextStyle(
+                            color: isSelected ? Colors.white : Colors.white70,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            side: BorderSide(
+                              color: isSelected ? AppTheme.emerald : Colors.white.withValues(alpha: 0.1),
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
             ),
           ),
           
@@ -520,7 +584,7 @@ class _AroundScreenState extends State<AroundScreen> with AutomaticKeepAliveClie
               child: Align(
                 alignment: Alignment.topCenter,
                 child: Padding(
-                  padding: const EdgeInsets.only(top: 70.0),
+                  padding: const EdgeInsets.only(top: 140.0),
                   child: ElevatedButton.icon(
                     onPressed: () {
                       setState(() {
@@ -579,7 +643,7 @@ class _AroundScreenState extends State<AroundScreen> with AutomaticKeepAliveClie
           child: const Icon(Icons.refresh, color: Colors.white),
         ),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 }

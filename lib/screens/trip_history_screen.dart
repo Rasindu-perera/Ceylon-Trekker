@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../app/app_theme.dart';
 
 class TripHistoryScreen extends StatelessWidget {
@@ -146,6 +147,45 @@ class TripHistoryScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _startNavigation(BuildContext context, List<dynamic> places) async {
+    final validPlaces = places.where((p) {
+      final map = p as Map<dynamic, dynamic>?;
+      return map != null && map['lat'] != null && map['lng'] != null;
+    }).toList();
+
+    if (validPlaces.length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Not enough valid places to navigate.')));
+      return;
+    }
+
+    final first = validPlaces.first as Map<dynamic, dynamic>;
+    final last = validPlaces.last as Map<dynamic, dynamic>;
+    final origin = '${first['lat']},${first['lng']}';
+    final destination = '${last['lat']},${last['lng']}';
+    
+    String waypointsStr = '';
+    if (validPlaces.length > 2) {
+      final waypoints = validPlaces.sublist(1, validPlaces.length - 1);
+      waypointsStr = '&waypoints=' + waypoints.map((p) {
+        final pm = p as Map<dynamic, dynamic>;
+        return '${pm['lat']},${pm['lng']}';
+      }).join('|');
+    }
+
+    final urlString = 'https://www.google.com/maps/dir/?api=1&origin=$origin&destination=$destination$waypointsStr&travelmode=driving';
+    final uri = Uri.parse(urlString);
+
+    try {
+      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+        throw Exception('Could not launch Google Maps');
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error launching navigation: $e')));
+      }
+    }
+  }
+
   Widget _buildTripCard(BuildContext context, Map<String, dynamic> trip) {
     final destination = trip['destination'] ?? 'Unknown Destination';
     final dates = trip['dates'] ?? '?';
@@ -155,33 +195,58 @@ class TripHistoryScreen extends StatelessWidget {
       color: AppTheme.surfaceElevated,
       margin: const EdgeInsets.only(bottom: 16),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: InkWell(
-        onTap: () => _showPlanDetails(context, trip),
-        borderRadius: BorderRadius.circular(16),
-        child: ListTile(
-          contentPadding: const EdgeInsets.all(16),
-          leading: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: AppTheme.emerald.withValues(alpha: 0.1), shape: BoxShape.circle),
-            child: const Icon(Icons.flight_takeoff, color: AppTheme.emerald),
-          ),
-          title: Text(
-            'Trip to $destination', 
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
-          ),
-          subtitle: Padding(
-            padding: const EdgeInsets.only(top: 4.0),
-            child: Text(
-              '$dates Days • $travelers', 
-              style: const TextStyle(color: Colors.white54)
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            onTap: () => _showPlanDetails(context, trip),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+            child: ListTile(
+              contentPadding: const EdgeInsets.all(16),
+              leading: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: AppTheme.emerald.withValues(alpha: 0.1), shape: BoxShape.circle),
+                child: const Icon(Icons.flight_takeoff, color: AppTheme.emerald),
+              ),
+              title: Text(
+                'Trip to $destination', 
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
+              ),
+              subtitle: Padding(
+                padding: const EdgeInsets.only(top: 4.0),
+                child: Text(
+                  '$dates Days • $travelers', 
+                  style: const TextStyle(color: Colors.white54)
+                ),
+              ),
+              trailing: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(12)),
+                child: const Text('AI Plan', style: TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold)),
+              ),
             ),
           ),
-          trailing: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(12)),
-            child: const Text('AI Plan', style: TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold)),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: ElevatedButton.icon(
+              onPressed: () {
+                if (trip['places'] != null) {
+                  _startNavigation(context, trip['places'] as List<dynamic>);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No route places found for this trip.')));
+                }
+              },
+              icon: const Icon(Icons.navigation, color: Colors.white),
+              label: const Text('Start Trip (Maps)', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blueAccent,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

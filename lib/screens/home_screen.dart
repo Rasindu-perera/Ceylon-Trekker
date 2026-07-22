@@ -8,6 +8,7 @@ import 'package:geocoding/geocoding.dart';
 import '../app/app_theme.dart';
 import '../widgets/ai_chat_sheet.dart';
 import 'profile_screen.dart';
+import 'plan_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -171,13 +172,6 @@ class _HomeScreenState extends State<HomeScreen> {
             // Hero Section with Search Bar
             _buildHeroSection(),
             
-            const SizedBox(height: 24),
-            
-            // Explore Categories
-            _buildSectionHeader('Explore Categories', 'view all'),
-            const SizedBox(height: 16),
-            _buildCategoryChips(),
-            
             const SizedBox(height: 32),
             
             // Recommended / Searched Places
@@ -189,14 +183,17 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 16),
             _buildRecommendations(),
             
-            const SizedBox(height: 32),
-            
-            // AI Planner Banner
-            _buildAiPlannerBanner(),
-            
             const SizedBox(height: 140),
           ],
         ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.push(context, MaterialPageRoute(builder: (context) => const PlanScreen()));
+        },
+        backgroundColor: AppTheme.emerald,
+        icon: const Icon(Icons.smart_toy, color: Colors.white),
+        label: const Text('AI Planner', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
     );
   }
@@ -375,59 +372,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildCategoryChips() {
-    return SizedBox(
-      height: 40,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        itemCount: _categories.length,
-        itemBuilder: (context, index) {
-          final cat = _categories[index];
-          final isSelected = cat['label'] == activeFilter;
-          return _buildChip(
-            cat['label'], 
-            cat['icon'], 
-            isSelected: isSelected,
-            onTap: () {
-              setState(() {
-                activeFilter = cat['label'];
-                searchController.clear();
-              });
-            },
-          );
-        },
-      ),
-    );
-  }
 
-  Widget _buildChip(String label, IconData icon, {required bool isSelected, required VoidCallback onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(right: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        decoration: BoxDecoration(
-          color: isSelected ? AppTheme.emerald : Colors.white.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: isSelected ? AppTheme.emerald : Colors.transparent),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: isSelected ? Colors.white : Colors.white54, size: 16),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? Colors.white : Colors.white54,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildRecommendations() {
     return StreamBuilder<DatabaseEvent>(
@@ -665,51 +610,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildAiPlannerBanner() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 24),
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0C2C24),
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppTheme.emerald.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppTheme.emerald.withValues(alpha: 0.5)),
-            ),
-            child: const Text('ai powered', style: TextStyle(color: AppTheme.emerald, fontSize: 10, fontWeight: FontWeight.bold)),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Ready for a tailored\nisland escape?',
-            style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold, height: 1.2),
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            'Generate a custom 5-day itinerary based on your trekking speed and budget.',
-            style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton(
-            onPressed: _openAiGuideSheet,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.emerald,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            ),
-            child: const Text('Start Planning', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-        ],
       ),
     );
   }
