@@ -7,6 +7,7 @@ import 'help_support_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
 import 'login_screen.dart';
+import 'admin_add_place_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -49,6 +50,10 @@ class ProfileScreen extends StatelessWidget {
                 Text(displayName, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
                 Text(email, style: const TextStyle(color: Colors.white54, fontSize: 14)),
                 const SizedBox(height: 32),
+                if (user?.email == 'abc1.rasinduparare@gmail.com')
+                  _buildProfileOption(Icons.admin_panel_settings, 'Admin Panel', () {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminAddPlaceScreen()));
+                  }),
                 _buildProfileOption(Icons.settings, 'Settings', () {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
                 }),

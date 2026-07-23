@@ -23,12 +23,15 @@ class _HomeScreenState extends State<HomeScreen> {
   
   String _currentLocation = "Locating...";
 
-  final List<Map<String, dynamic>> _categories = [
-    {'label': 'All', 'icon': Icons.explore},
-    {'label': 'Hiking', 'icon': Icons.hiking},
-    {'label': 'Camping', 'icon': Icons.park},
-    {'label': 'Waterfalls', 'icon': Icons.water_drop},
-    {'label': 'Historical', 'icon': Icons.account_balance},
+  final List<String> _categories = [
+    'All',
+    'Historical',
+    'Hiking',
+    'Beaches',
+    'Nature',
+    'Camping',
+    'Waterfall',
+    'Visiting',
   ];
 
   @override
@@ -180,6 +183,8 @@ class _HomeScreenState extends State<HomeScreen> {
               null, 
               icon: Icons.trending_up
             ),
+            const SizedBox(height: 16),
+            _buildCategoryFilter(),
             const SizedBox(height: 16),
             _buildRecommendations(),
             
@@ -373,7 +378,40 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-
+  Widget _buildCategoryFilter() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+      child: Row(
+        children: _categories.map((category) {
+          final isSelected = activeFilter == category;
+          return Padding(
+            padding: const EdgeInsets.only(right: 12.0),
+            child: ChoiceChip(
+              label: Text(
+                category,
+                style: TextStyle(
+                  color: isSelected ? Colors.white : Colors.white70,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+              selected: isSelected,
+              selectedColor: AppTheme.emerald,
+              backgroundColor: AppTheme.surfaceElevated,
+              showCheckmark: false,
+              side: BorderSide.none,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              onSelected: (selected) {
+                setState(() {
+                  activeFilter = category;
+                });
+              },
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
 
   Widget _buildRecommendations() {
     return StreamBuilder<DatabaseEvent>(
@@ -453,7 +491,9 @@ class _HomeScreenState extends State<HomeScreen> {
       final tagsList = data['tags'] as List<dynamic>? ?? [];
       final tags = tagsList.join(' ').toLowerCase();
 
-      final matchesCategory = activeFilter == 'All' || category == activeFilter;
+      final matchesCategory = activeFilter == 'All' || 
+                              category.toLowerCase() == activeFilter.toLowerCase() ||
+                              tagsList.any((tag) => tag.toString().toLowerCase() == activeFilter.toLowerCase());
       final matchesSearch = query.isEmpty || 
                             title.contains(query) ||
                             extract.contains(query) ||
