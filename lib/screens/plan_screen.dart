@@ -361,115 +361,117 @@ class _PlanScreenState extends State<PlanScreen> {
           )
         ],
       ),
-      body: Column(
-        children: [
-          // Top: Map View
-          SizedBox(
-            height: 250,
-            child: Stack(
-              children: [
-                FlutterMap(
-                  mapController: _mapController,
-                  options: MapOptions(
-                    initialCenter: const LatLng(7.8731, 80.7718),
-                    initialZoom: 7.0,
-                  ),
-                  children: [
-                    TileLayer(
-                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.example.ceylon_trekker',
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            // Top: Map View
+            SizedBox(
+              height: 250,
+              child: Stack(
+                children: [
+                  FlutterMap(
+                    mapController: _mapController,
+                    options: MapOptions(
+                      initialCenter: const LatLng(7.8731, 80.7718),
+                      initialZoom: 7.0,
                     ),
-                    if (_routePoints.isNotEmpty)
-                      PolylineLayer(
-                        polylines: [
-                          Polyline(
-                            points: _routePoints,
-                            color: AppTheme.emerald,
-                            strokeWidth: 5.0,
-                          ),
-                        ],
+                    children: [
+                      TileLayer(
+                        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName: 'com.example.ceylon_trekker',
                       ),
-                    MarkerLayer(
-                      markers: _validPlaces.map((p) {
-                        return Marker(
-                          point: LatLng(p['lat'], p['lng']),
-                          width: 40,
-                          height: 40,
-                          child: const Icon(Icons.location_on, color: Colors.redAccent, size: 36),
-                        );
-                      }).toList(),
-                    ),
-                  ],
-                ),
-                if (_isRouting)
-                  Container(
-                    color: Colors.black.withValues(alpha: 0.4),
-                    child: const Center(
-                      child: CircularProgressIndicator(color: AppTheme.emerald),
-                    ),
+                      if (_routePoints.isNotEmpty)
+                        PolylineLayer(
+                          polylines: [
+                            Polyline(
+                              points: _routePoints,
+                              color: AppTheme.emerald,
+                              strokeWidth: 5.0,
+                            ),
+                          ],
+                        ),
+                      MarkerLayer(
+                        markers: _validPlaces.map((p) {
+                          return Marker(
+                            point: LatLng(p['lat'], p['lng']),
+                            width: 40,
+                            height: 40,
+                            child: const Icon(Icons.location_on, color: Colors.redAccent, size: 36),
+                          );
+                        }).toList(),
+                      ),
+                    ],
                   ),
-              ],
+                  if (_isRouting)
+                    Container(
+                      color: Colors.black.withValues(alpha: 0.4),
+                      child: const Center(
+                        child: CircularProgressIndicator(color: AppTheme.emerald),
+                      ),
+                    ),
+                ],
+              ),
             ),
-          ),
-          
-          // Middle: Summary Card
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
-              color: AppTheme.surfaceElevated,
-              boxShadow: [
-                BoxShadow(color: Colors.black45, offset: Offset(0, 4), blurRadius: 8),
-              ]
+            
+            // Middle: Summary Card
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: const BoxDecoration(
+                color: AppTheme.surfaceElevated,
+                boxShadow: [
+                  BoxShadow(color: Colors.black45, offset: Offset(0, 4), blurRadius: 8),
+                ]
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Trip Summary', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Total Distance:', style: TextStyle(color: Colors.white70)),
+                      Text('${_calculatedDistance.toStringAsFixed(1)} km', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Est. Fuel Cost:', style: TextStyle(color: Colors.white70)),
+                      Text('Rs ${_estimatedFuelCost.toStringAsFixed(0)}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Food & Stay:', style: TextStyle(color: Colors.white70)),
+                      Text('Rs ${_estimatedFoodStayCost.toStringAsFixed(0)}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8.0),
+                    child: Divider(color: Colors.white24, height: 1),
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Total Estimated Cost', style: TextStyle(color: AppTheme.emerald, fontWeight: FontWeight.bold)),
+                      Text('Rs ${_totalEstimatedCost.toStringAsFixed(0)}', style: const TextStyle(color: AppTheme.emerald, fontSize: 20, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Trip Summary', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Total Distance:', style: TextStyle(color: Colors.white70)),
-                    Text('${_calculatedDistance.toStringAsFixed(1)} km', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Est. Fuel Cost:', style: TextStyle(color: Colors.white70)),
-                    Text('Rs ${_estimatedFuelCost.toStringAsFixed(0)}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Food & Stay:', style: TextStyle(color: Colors.white70)),
-                    Text('Rs ${_estimatedFoodStayCost.toStringAsFixed(0)}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8.0),
-                  child: Divider(color: Colors.white24, height: 1),
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Total Estimated Cost', style: TextStyle(color: AppTheme.emerald, fontWeight: FontWeight.bold)),
-                    Text('Rs ${_totalEstimatedCost.toStringAsFixed(0)}', style: const TextStyle(color: AppTheme.emerald, fontSize: 20, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-              ],
-            ),
-          ),
 
-          // Bottom: Reorderable List
-          Expanded(
-            child: Theme(
+            // Bottom: Reorderable List
+            Theme(
               data: Theme.of(context).copyWith(canvasColor: Colors.transparent),
               child: ReorderableListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(16),
                 itemCount: itineraryPlaces.length,
                 onReorder: _onReorder,
@@ -512,10 +514,12 @@ class _PlanScreenState extends State<PlanScreen> {
                 },
               ),
             ),
-          ),
-        ],
+
+            // Action Buttons moved from bottomNavigationBar
+            _buildActionButtons(),
+          ],
+        ),
       ),
-      bottomNavigationBar: _buildActionButtons(),
     );
   }
 
