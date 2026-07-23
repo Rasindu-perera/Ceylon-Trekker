@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "926264768467",
+    "firebase_url": "https://ceylon-trekker-default-rtdb.asia-southeast1.firebasedatabase.app",
     "project_id": "ceylon-trekker",
     "storage_bucket": "ceylon-trekker.firebasestorage.app"
   },
@@ -12,7 +13,20 @@
           "package_name": "com.example.ceylon_trekker"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "926264768467-7l5dvk6mfr8r1rabcmg0kumh5hh2esne.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.ceylon_trekker",
+            "certificate_hash": "0f2a88fa6ce8da3b8b48fd6d991b1a1210e2a627"
+          }
+        },
+        {
+          "client_id": "926264768467-k0eba6056ugvk1s4r5bll3426ncpne7a.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyClMdiTieWjDc1iuZ5euI8RRIoVxXO2JBI"
@@ -20,7 +34,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "926264768467-k0eba6056ugvk1s4r5bll3426ncpne7a.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "926264768467-1ceslinf729n36kgmkmiq1mh8ee5jkt9.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.ceylonTrekker"
+              }
+            }
+          ]
         }
       }
     }

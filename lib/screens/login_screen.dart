@@ -1,5 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../app/app_theme.dart';
 import '../widgets/app_shell.dart';
 import 'home_screen.dart';
@@ -20,6 +22,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _isGoogleSignInInitialized = false;
 
   void _login() async {
     if (_emailController.text.trim().isEmpty || _passwordController.text.isEmpty) {
@@ -39,6 +42,66 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (user != null && mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const AppShell(
+            screens: [
+              HomeScreen(),
+              PlanScreen(),
+              AroundScreen(),
+              BudgetScreen(),
+            ],
+          )),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _signInWithGoogle() async {
+    setState(() {
+      _isLoading = true;
+    });
+    
+    try {
+      if (!_isGoogleSignInInitialized) {
+        await GoogleSignIn.instance.initialize();
+        _isGoogleSignInInitialized = true;
+      }
+
+      final GoogleSignInAccount? googleUser = await GoogleSignIn.instance.authenticate();
+      if (googleUser == null) {
+        // User canceled the sign-in
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+      
+      final GoogleSignInAuthentication googleAuth = googleUser.authentication;
+      final GoogleSignInClientAuthorization? clientAuth = 
+          await googleUser.authorizationClient.authorizationForScopes(['email', 'profile']) ??
+          await googleUser.authorizationClient.authorizeScopes(['email', 'profile']);
+      
+      final credential = GoogleAuthProvider.credential(
+        accessToken: clientAuth?.accessToken,
+        idToken: googleAuth.idToken,
+      );
+      
+      final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+      
+      if (userCredential.user != null && mounted) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const AppShell(
@@ -131,7 +194,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 24),
                   ElevatedButton(
-                    onPressed: _login,
+                    onPressed: _isLoading ? null : _login,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.emerald,
                       padding: const EdgeInsets.symmetric(vertical: 16),
@@ -140,6 +203,17 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: _isLoading
                         ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                         : const Text('Login', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: _isLoading ? null : _signInWithGoogle,
+                    icon: const Icon(Icons.g_mobiledata, color: Colors.black, size: 28),
+                    label: const Text('Continue with Google', style: TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
                   ),
                   const SizedBox(height: 24),
                   Row(

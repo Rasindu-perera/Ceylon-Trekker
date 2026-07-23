@@ -3,7 +3,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:image_picker/image_picker.dart';
 import '../app/app_theme.dart';
 
@@ -64,16 +65,29 @@ class _AdminAddPlaceScreenState extends State<AdminAddPlaceScreen> {
 
       try {
         final file = File(pickedFile.path);
-        final fileName = 'place_${DateTime.now().millisecondsSinceEpoch}.jpg';
-        final storageRef = FirebaseStorage.instance.ref('place_images/$fileName');
+        final bytes = await file.readAsBytes();
+        final base64Image = base64Encode(bytes);
         
-        final uploadTask = storageRef.putFile(file);
-        final snapshot = await uploadTask;
-        final downloadUrl = await snapshot.ref.getDownloadURL();
-        
-        setState(() {
-          _imageUrlController.text = downloadUrl;
+        final apiKey = dotenv.env['IMGBB_API_KEY'];
+        if (apiKey == null || apiKey.isEmpty) {
+          throw Exception('ImgBB API key not found in .env');
+        }
+
+        final uri = Uri.parse('https://api.imgbb.com/1/upload?key=$apiKey');
+        final response = await http.post(uri, body: {
+          'image': base64Image,
         });
+
+        if (response.statusCode == 200) {
+          final jsonResponse = jsonDecode(response.body);
+          final downloadUrl = jsonResponse['data']['url'];
+          
+          setState(() {
+            _imageUrlController.text = downloadUrl;
+          });
+        } else {
+          throw Exception('ImgBB returned status ${response.statusCode}: ${response.body}');
+        }
         
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
